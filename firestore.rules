@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isGymManager() { return signedIn() && (isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['gym_owner','gym_admin','trainer_admin']); }
+
+    // Portal-managed collections. Kept open to authenticated portal operators for now.
+    // Before publication, these should be narrowed to a dedicated portal role/custom claim.
+    match /gyms/{id} { allow read, write: if signedIn(); }
+    match /clients/{id} { allow read, write: if signedIn(); }
+    match /trainers/{id} { allow read, write: if signedIn(); }
+    match /schede/{id} { allow read, write: if signedIn(); }
+    match /scheda_days/{id} { allow read, write: if signedIn(); }
+    match /scheda_exercises/{id} { allow read, write: if signedIn(); }
+    match /exercises/{id} { allow read, write: if signedIn(); }
+    match /courses/{id} { allow read, write: if signedIn(); }
+    match /occupancy/{id} { allow read, write: if signedIn(); }
+    match /notifications/{id} { allow read, write: if signedIn(); }
+    match /promos/{id} { allow read, write: if signedIn(); }
+    match /events/{id} { allow read, write: if signedIn(); }
+    match /course_bookings/{id} { allow read, write: if signedIn(); }
+    match /membership_renewal_requests/{id} { allow read: if signedIn(); allow create: if signedIn() && request.resource.data.user_id == request.auth.uid; allow update, delete: if isGymManager(); }
+    match /payments/{id} { allow read, write: if signedIn(); }
+    match /gym_checkins/{id} { allow read, write: if signedIn(); }
+
+    match /users/{userId} {
+      // Development portal: authenticated operators can read profiles so legacy
+      // client accounts can be recovered into /clients. Tighten this before publication.
+      allow read: if signedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin() ||
+        (isGymManager() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trainer_id']));
+      allow delete: if isAdmin();
+    }
+    match /users/{userId}/devices/{deviceId} { allow read, write: if isOwner(userId); }
+
+    match /attendance/{id} {
+      allow read: if signedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /event_participants/{document} {
+      allow read: if isOwner(resource.data.user_id) || isAdmin();
+      allow create: if signedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.user_id) || isAdmin();
+    }
+    match /community_messages/{document} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.user_id) || isAdmin();
+    }
+    match /pt_messages/{document} {
+      allow read: if signedIn() && (resource.data.user_id == request.auth.uid || resource.data.trainer_id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.trainer_id == resource.data.trainer_id || isAdmin());
+      allow create: if signedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.user_id) || isAdmin();
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
