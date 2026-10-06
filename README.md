@@ -35,7 +35,7 @@ Dalla root del portale:
 ```bash
 firebase login
 firebase use u-gym-52fce
-firebase deploy --only firestore:rules,storage
+firebase deploy --only firestore:rules
 ```
 
 ### ATTENZIONE sicurezza
@@ -46,9 +46,9 @@ Prima della pubblicazione conviene passare a un vero ruolo `portalAdmin`/custom 
 
 ## Immagini di corsi ed eventi
 
-Nel form di un corso o di un evento puoi caricare un'immagine facoltativa (massimo 5 MB). Il file viene archiviato in Firebase Storage e nel documento Firestore viene salvato l'URL `image_url`, così resta compatibile con il modello già usato dalle promo. Verifica che Firebase Storage sia attivato nel progetto e che `VITE_FIREBASE_STORAGE_BUCKET` indichi il bucket effettivo.
+Nel form di un corso o di un evento puoi caricare un'immagine facoltativa (JPEG, PNG o WebP, massimo 5 MB). Il browser la ridimensiona e comprime prima di salvarla nel campo `image_url` del documento Firestore come data URI (`data:image/jpeg;base64,...`). Non viene usato Firebase Storage e non serve attivarlo o configurare nuove regole.
 
-Il deploy include anche `storage.rules`, che consente agli utenti autenticati di leggere e caricare solo immagini per `courses` ed `events`. Per rendere visibile l'immagine nell'app mobile, il client deve mostrare il campo `image_url` dei documenti di corso/evento.
+Le immagini compresse sono limitate a 450 KiB per lasciare spazio agli altri dati nel limite Firestore di 1 MiB per documento. Restano soggette alle quote gratuite Firestore: usa immagini solo quando servono. Il client mobile deve leggere `image_url` e renderizzare anche URI `data:image/jpeg;base64,...` oltre ai normali URL.
 
 Per assegnare un personal trainer a un cliente, crea prima il trainer nella sezione **Trainer**, poi selezionalo nel form del cliente. Il portale aggiorna `clients.trainer_id` e, se esiste il profilo Firebase dell'utente collegato, anche `users/{uid}.trainer_id`, usato dal client per le funzioni PT.
 
